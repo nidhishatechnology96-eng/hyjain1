@@ -9,8 +9,8 @@
 # Google Cloud Service Account Key
 # This is the line that solves your specific error
 /backend/serviceAccountKey.json
-/.env
 /serviceAccountKey.json
+
 # Production build folder
 /build
 /dist

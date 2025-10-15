@@ -1,3 +1,5 @@
+// --- 1. IMPORTS ---
+// Sab kuch import statement ka use karke import karein
 import express from "express";
 import admin from "firebase-admin";
 import dotenv from "dotenv";
@@ -7,9 +9,11 @@ import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 
+// --- 2. CONFIGURATIONS ---
 dotenv.config();
 
-// --- FIREBASE ADMIN SETUP ---
+// Firebase Admin Setup
+// Yeh code theek hai, lekin sunishchit karein ki Render par "Secret File" set hai
 const serviceAccount = JSON.parse(readFileSync('./serviceAccountKey.json', 'utf8'));
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -18,8 +22,7 @@ admin.initializeApp({
 const db = admin.firestore();
 const productsCollection = db.collection('products');
 
-
-// --- CLOUDINARY CONFIGURATION ---
+// Cloudinary Configuration
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -36,13 +39,21 @@ const storage = new CloudinaryStorage({
 const upload = multer({ storage: storage });
 
 
-// --- EXPRESS APP SETUP ---
+// --- 3. EXPRESS APP SETUP & MIDDLEWARE ---
+// app ko sirf EK BAAR declare karein
 const app = express();
-app.use(cors());
+
+// CORS ko yahan configure karein
+const corsOptions = {
+    origin: "https://hyjain.netlify.app" // Aapki Netlify site ka URL
+};
+app.use(cors(corsOptions));
+
+// JSON bodies ko parse karne ke liye middleware
 app.use(express.json());
 
 
-// --- API ROUTES ---
+// --- 4. API ROUTES ---
 
 // Image Upload Route
 app.post('/api/upload-image', upload.single('image'), (req, res) => {
@@ -68,21 +79,20 @@ app.get("/api/products", async (req, res) => {
   }
 });
 
-// --- NEW: GET ALL USERS ROUTE ---
+// GET ALL USERS ROUTE
 app.get("/api/users", async (req, res) => {
     try {
         const userRecords = await admin.auth().listUsers();
         const users = userRecords.users.map(user => ({
             id: user.uid,
             email: user.email,
-            name: user.displayName || user.email.split('@')[0], // Fallback name
+            name: user.displayName || user.email.split('@')[0],
         }));
         res.status(200).json(users);
     } catch (err) {
         res.status(500).json({ error: "Failed to fetch users: " + err.message });
     }
 });
-
 
 // ADD a new product
 app.post("/api/products", async (req, res) => {
@@ -100,8 +110,7 @@ app.put("/api/products/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const updatedData = req.body;
-        const productRef = productsCollection.doc(id);
-        await productRef.update(updatedData);
+        await productsCollection.doc(id).update(updatedData);
         res.status(200).json({ id, ...updatedData });
     } catch (err) {
         res.status(500).json({ error: "Failed to update product: " + err.message });
@@ -120,23 +129,6 @@ app.delete("/api/products/:id", async (req, res) => {
 });
 
 
-const PORT = process.env.PORT || 5000;
+// --- 5. START THE SERVER ---
+const PORT = process.env.PORT || 10000; // Render aksar 10000 port use karta hai
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
-
-// In your order controller file
-const getOrderById = async (req, res) => {
-  try {
-    // This is the line that needs to be perfect.
-    // Is the field name in your schema 'user' or something else like 'customer'?
-    const order = await Order.findById(req.params.id).populate('user', 'name email mobile');
-
-    if (order) {
-      res.json(order);
-    } else {
-      res.status(404).json({ message: 'Order not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ message: 'Server Error' });
-  }
-};
