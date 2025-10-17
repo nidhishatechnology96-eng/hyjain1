@@ -1,5 +1,3 @@
-// --- 1. IMPORTS ---
-// Sab kuch import statement ka use karke import karein
 import express from "express";
 import admin from "firebase-admin";
 import dotenv from "dotenv";
@@ -8,12 +6,13 @@ import { readFileSync } from 'fs';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import axios from 'axios';
+import FormData from 'form-data';
+import path from 'path';
 
-// --- 2. CONFIGURATIONS ---
 dotenv.config();
 
-// Firebase Admin Setup
-// Yeh code theek hai, lekin sunishchit karein ki Render par "Secret File" set hai
+// --- FIREBASE ADMIN SETUP ---
 const serviceAccount = JSON.parse(readFileSync('./serviceAccountKey.json', 'utf8'));
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -22,53 +21,77 @@ admin.initializeApp({
 const db = admin.firestore();
 const productsCollection = db.collection('products');
 
-// Cloudinary Configuration
+// --- CLOUDINARY CONFIG (FOR IMAGES ONLY) ---
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
-
-const storage = new CloudinaryStorage({
+const imageStorage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
         folder: 'hyjain-products',
         allowed_formats: ['jpeg', 'png', 'jpg', 'webp']
     }
 });
-const upload = multer({ storage: storage });
+const imageUpload = multer({ storage: imageStorage });
 
+// --- MULTER SETUP FOR UPLOADCARE (HANDLES FILES IN MEMORY) ---
+const memoryStorage = multer.memoryStorage();
+const fileUpload = multer({ storage: memoryStorage });
 
-// --- 3. EXPRESS APP SETUP & MIDDLEWARE ---
-// app ko sirf EK BAAR declare karein
+// --- EXPRESS APP SETUP ---
 const app = express();
-
-// CORS ko yahan configure karein
-const corsOptions = {
-    origin: "https://hyjain.netlify.app" // Aapki Netlify site ka URL
-};
-app.use(cors(corsOptions));
-
-// JSON bodies ko parse karne ke liye middleware
+app.use(cors());
 app.use(express.json());
 
+// =================================================================
+// --- API ROUTES ---
+// =================================================================
 
-// --- 4. API ROUTES ---
-
-// Image Upload Route
-app.post('/api/upload-image', upload.single('image'), (req, res) => {
+// --- IMAGE UPLOAD ROUTE (Stays the same, uses Cloudinary) ---
+app.post('/api/upload-image', imageUpload.single('image'), (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No image file uploaded.' });
         }
         res.status(200).json({ imageUrl: req.file.path });
     } catch (error) {
-        console.error("Upload Error:", error);
+        console.error("Cloudinary Image Upload Error:", error);
         res.status(500).json({ error: 'Image upload failed: ' + error.message });
     }
 });
 
-// GET all products
+// --- FILE UPLOAD ROUTE (NEW AND CORRECTED, uses Uploadcare REST API) ---
+app.post('/api/upload-file', fileUpload.single('file'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file was uploaded.' });
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('UPLOADCARE_PUB_KEY', '8d5189298f8465f7079f'); // Your public key
+        formData.append('UPLOADCARE_STORE', 'auto');
+        formData.append('file', req.file.buffer, { filename: req.file.originalname });
+
+        const response = await axios.post('https://upload.uploadcare.com/base/', formData, {
+            headers: formData.getHeaders()
+        });
+
+        if (response.data && response.data.file) {
+            res.status(200).json({ fileUUID: response.data.file });
+        } else {
+            throw new Error('Uploadcare response did not contain a file UUID.');
+        }
+
+    } catch (error) {
+        const errorMessage = error.response ? JSON.stringify(error.response.data) : error.message;
+        console.error("Uploadcare API Error:", errorMessage);
+        res.status(500).json({ error: 'File upload to Uploadcare failed.' });
+    }
+});
+
+// --- Other existing routes (no changes needed) ---
 app.get("/api/products", async (req, res) => {
   try {
     const snapshot = await productsCollection.get();
@@ -79,7 +102,6 @@ app.get("/api/products", async (req, res) => {
   }
 });
 
-// GET ALL USERS ROUTE
 app.get("/api/users", async (req, res) => {
     try {
         const userRecords = await admin.auth().listUsers();
@@ -94,7 +116,6 @@ app.get("/api/users", async (req, res) => {
     }
 });
 
-// ADD a new product
 app.post("/api/products", async (req, res) => {
   try {
     const newProduct = req.body;
@@ -105,23 +126,21 @@ app.post("/api/products", async (req, res) => {
   }
 });
 
-// UPDATE a product
 app.put("/api/products/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const updatedData = req.body;
-        await productsCollection.doc(id).update(updatedData);
+        await db.collection('products').doc(id).update(updatedData);
         res.status(200).json({ id, ...updatedData });
     } catch (err) {
         res.status(500).json({ error: "Failed to update product: " + err.message });
     }
 });
 
-// DELETE a product
 app.delete("/api/products/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        await productsCollection.doc(id).delete();
+        await db.collection('products').doc(id).delete();
         res.status(200).json({ message: `Product with id ${id} deleted successfully.` });
     } catch (err) {
         res.status(500).json({ error: "Failed to delete product: " + err.message });
@@ -129,6 +148,5 @@ app.delete("/api/products/:id", async (req, res) => {
 });
 
 
-// --- 5. START THE SERVER ---
-const PORT = process.env.PORT || 10000; // Render aksar 10000 port use karta hai
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
