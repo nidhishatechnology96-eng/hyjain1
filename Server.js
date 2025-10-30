@@ -36,7 +36,15 @@ console.log('Nodemailer configured for:', process.env.NODEMAILER_EMAIL);
 
 // --- EXPRESS APP SETUP ---
 const app = express();
-app.use(cors());
+const cors = require('cors');
+
+// Define the allowed origin (your frontend's URL)
+const corsOptions = {
+  origin: 'https://hyjain-latest.onrender.com'
+};
+
+// Use the cors middleware with the specific options
+app.use(cors(corsOptions));
 app.use(express.json());
 app.set('trust proxy', true);
 
