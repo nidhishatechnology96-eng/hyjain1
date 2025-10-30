@@ -1,4 +1,4 @@
-// ✅ THIS IS THE FINAL, CORRECTED CODE. IT USES ip-api.com FOR ACCURATE LOCATION LOOKUPS.
+// ✅ THIS IS THE FINAL, CORRECTED CODE.
 
 import express from "express";
 import admin from "firebase-admin";
@@ -23,7 +23,7 @@ admin.initializeApp({
 });
 const db = admin.firestore();
 const productsCollection = db.collection('products');
-const subscribersCollection = db.collection('subscribers'); // Added for clarity
+const subscribersCollection = db.collection('subscribers');
 
 // --- CLOUDINARY, MULTER, AND NODEMAILER SETUP ---
 cloudinary.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET });
@@ -36,7 +36,8 @@ console.log('Nodemailer configured for:', process.env.NODEMAILER_EMAIL);
 
 // --- EXPRESS APP SETUP ---
 const app = express();
-const cors = require('cors');
+
+// ✅ FIX: The duplicate 'const cors = require('cors');' has been removed from here.
 
 // Define the allowed origin (your frontend's URL)
 const corsOptions = {
@@ -105,7 +106,7 @@ app.post("/api/notify-login", async (req, res) => {
     } catch (error) { console.error("Nodemailer Error sending login email:", error); res.status(500).json({ error: "Failed to send email." }); }
 });
 
-// ✅ --- NEW: ENQUIRY NOTIFICATION ROUTE ---
+// --- ENQUIRY NOTIFICATION ROUTE ---
 app.post("/api/notify-enquiry", async (req, res) => {
     try {
         const { email, name } = req.body;
@@ -136,7 +137,7 @@ app.post("/api/notify-enquiry", async (req, res) => {
     }
 });
 
-// ✅ --- NEW: FEEDBACK NOTIFICATION ROUTE ---
+// --- FEEDBACK NOTIFICATION ROUTE ---
 app.post("/api/notify-feedback", async (req, res) => {
     try {
         const { email, name } = req.body;
@@ -166,7 +167,6 @@ app.post("/api/notify-feedback", async (req, res) => {
         res.status(500).json({ error: "Failed to send email." });
     }
 });
-
 
 // --- SUBSCRIBER NOTIFICATION ROUTE ---
 app.post("/api/subscribe", async (req, res) => {
